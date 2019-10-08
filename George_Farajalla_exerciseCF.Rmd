@@ -1,0 +1,165 @@
+# IE - Master in Business Analytics and Big Data
+Recommendation Systems
+
+Building a Collaborative Filtering Engine
+
+Author: George Farajalla
+
+========================================================
+
+# Initialization
+
+Import libraries
+
+```{r}
+library(Hmisc)
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+library(magrittr)
+library(data.table)
+```
+
+Load the critics dataset.
+
+```{r}
+folder_path <- "C:/Users/PC/Desktop/IE/Recommendation Engines/Data" # change path here
+
+critics <- fread(file.path(folder_path, "critics.csv"))
+```
+
+# 1) Pearson correlation coefficient 
+Calculate the Pearson correlation coefficient between Sophia and Nuria
+
+**Expected correlation between Sophia and Nuria**: 0.3651484
+ 
+```{r fig.width=7, fig.height=6}
+
+c <- as.data.frame(filter(critics, critics$User == "Sophia" | critics$User == "Nuria" )) # filter for only sophia and nuria
+c$User <- NULL # remove user column
+c <- t(c) # transpose data frame
+colnames(c) <- c("Nuria", "Sophia")
+expected <- cor(c[,1], c[,2], use="pairwise.complete.obs") # calculate correlation between them
+
+sprintf("Expected correlation between Sophia and Nuria: %f", expected )
+
+```
+
+# 2) Compare two movie critics
+Using the calculated Pearson correlation in the previous section. Compare and show the movie ratings for Sophia and Nuria on a scatter plot. How is this compared with the same ratings of Maria and Nerea on a scatter plot? What about Chris and Jim? What it means?
+
+```{r} 
+
+Sophia_and_Nuria <- as.data.frame(filter(critics, critics$User == "Sophia" | critics$User == "Nuria" ))
+Sophia_and_Nuria$User <- NULL
+rownames(Sophia_and_Nuria) <- c("Nuria", "Sophia")
+Sophia_and_Nuria <- as.data.frame(t(as.matrix(Sophia_and_Nuria)))
+
+graph1 <- ggplot(data = Sophia_and_Nuria, aes(x = Sophia_and_Nuria$Sophia, y = Sophia_and_Nuria$Nuria)) + geom_point() + geom_smooth(method = "lm", se = F)
+graph1
+
+## Both users are slightly postively correlated in terms of ratings and movies
+
+Maria_and_Nerea <- as.data.frame(filter(critics, critics$User == "Maria" | critics$User == "Nerea" ))
+Maria_and_Nerea$User <- NULL
+rownames(Maria_and_Nerea) <- c("Maria", "Nerea")
+
+Maria_and_Nerea <- as.data.frame(t(as.matrix(Maria_and_Nerea)))
+
+graph2 <- ggplot(data = Maria_and_Nerea, aes(x = Maria_and_Nerea$Maria, y = Maria_and_Nerea$Nerea)) + geom_point() + geom_smooth(method = "lm", se = F)
+
+## Both users are negatively correlated in terms of ratings and movies
+
+Chris_and_Jim <- as.data.frame(filter(critics, critics$User == "Chris" | critics$User == "Jim" ))
+Chris_and_Jim$User <- NULL
+rownames(Chris_and_Jim) <- c("Chris", "Jim")
+Chris_and_Jim <- as.data.frame(t(as.matrix(Chris_and_Jim)))
+
+graph3 <- ggplot(data = Chris_and_Jim, aes(x = Chris_and_Jim$Jim, y = Chris_and_Jim$Chris)) + geom_point() + geom_smooth(method = "lm", se = F)
+
+## Both users are strongly postively correlated in terms of ratings and movies
+```
+
+# 3) Top Recommendations 
+Return the top-5 recommended movies for Sophia Use the weighted average of every other critic's rankings.
+
+**Expected result**:
+3.7917013044215, 'The Matrix'
+3.50776533175371, 'Forrest Gump'     
+3.33118834864677, 'The Sixth Sense' 
+3.11491825315719, 'Shakespeare in Love'
+2.9124513228665, 'Blade Runner'
+
+```{r fig.width=7, fig.height=6}
+
+## the objective here is to apply the forumla we learned in class
+## we need to obtain the top recommended movies for sophia by similar
+## users which is why we need to use a weighted average.
+## we need the correlations between sophia and the other users as well 
+## as the average ratings of each user. 
+
+c <- as.data.frame(critics[,-1])
+
+ct <- t(c)
+colnames(ct)<- t(critics[,1])
+rownames(c)<-t(critics[,1])
+
+ct <- as.data.frame(ct) ## transform to data frame, makes it easier to work with
+
+pos <- which(colnames(ct) == "Sophia") ## Sophia's position
+
+## average rating of Sophia, first element of the formula
+Sophia_avg <- mean(ct$Sophia, na.rm = T)
+
+## calculate correlations between sophia and all other users
+corr_df <- c()
+
+for (i in 1:ncol(ct)){
+  
+  to_store <- cor(ct[,i], ct[, pos], use="pairwise.complete.obs", method = "pearson")
+  
+  corr_df[i] <- to_store
+  
+  
+}
+
+## weight w
+sum_cor <- sum(abs(corr_df)) - 1 ## remove the 1 contribution from the correlation of Sophia with herself
+
+
+final <- Sophia_avg + ## scaling difference          # multiply by correlations
+  (colSums((c[-pos,] - rowMeans(c[-pos,],na.rm = T)) * corr_df[-pos], na.rm = T) / sum_cor) # divide by sum 
+
+ns <- c(is.na(ct[,pos])) ## movies sophia hasn't seen
+
+head(sort(final[ns], decreasing = T))[1:5]
+
+
+
+```
+
+# 4) Top similar critics
+Return the top 5 critics that are most similar to Sophia. 
+
+**Expected result**:
+0.9449112, 'Rachel'
+0.5976143, 'Ana' 
+0.5789794, 'Oriol'
+0.4925922, 'Maria'
+0.4273247, 'Carles'
+
+```{r fig.width=7, fig.height=6}
+
+ct <- dcast(melt(critics, id.vars = "User"), variable ~ User) ## transpose
+ct <- as.data.frame(ct) ## convert to data frame
+critics_names <- colnames(critics)
+critics_names <- critics_names[2:21]
+ct$variable <- NULL
+rownames(ct) <- critics_names ## set col names
+
+# start from 2 since number 1 is sophia but we disregard since it is correlation with itself
+# end at 6 to get actual top 5
+sort(sapply(ct, function(x){cor(ct$Sophia, x, use = "pairwise.complete.obs")}), decreasing = T)[2:6]
+
+
+```

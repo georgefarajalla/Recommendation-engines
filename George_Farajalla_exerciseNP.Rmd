@@ -1,0 +1,129 @@
+# IE - Master in Business Analytics and Big Data
+Recommendation Systems
+
+Building a Non Personalized Recommendation Engine
+
+Author: George Farajalla
+
+========================================================
+
+# Initialization
+
+Import libraries
+
+```{r}
+library(data.table)
+
+```
+
+Load the critics dataset.
+
+```{r}
+folder_path <- "C:/Users/PC/Desktop/IE/Recommendation Engines/Data" # change path here
+
+critics <- fread(file.path(folder_path, "critics.csv"))
+```
+
+# 1) Top 5 Movies, by rating mean
+Calculate mean rating for each movie, ordered with the highest rating listed first, and plot the top 5.
+
+**Expected result**:
+3.600000, 'The Shawshank Redemption'
+3.266667, 'Star Wars IV - A New Hope'
+3.222222, 'Blade Runner'
+3.166667, 'Groundhog Day'
+3.062500, 'The Silence of the Lambs'
+
+```{r fig.width=7, fig.height=6}
+
+movie_ratings <- critics
+movie_ratings$User <- NULL
+mean_ratings <- sort(colMeans(movie_ratings, na.rm = T), decreasing = T)
+mean_ratings[1:5]
+
+```
+
+# 2) Top 5 Movies, by rating distribution
+Calculate the percentage of ratings for each movie that are 4 stars or higher. Order with the highest percentage first, and plot the top 5 movies with more high ratings distribution.
+
+**Expected result**:
+0.7000000, 'The Shawshank Redemption'
+0.5333333, 'Star Wars IV - A New Hope'
+0.5000000, 'Gladiator'
+0.4444444, 'Blade Runner'
+0.4375000, 'The Silence of the Lambs'
+
+```{r fig.width=7, fig.height=6}
+
+topperc <- sort(apply(movie_ratings, 2, 
+                      function(x) sum(x >= 4, na.rm = T) / sum(x >= 0, na.rm = T)), decreasing = T)
+topperc[1:5]
+```
+
+# 3) Top 5 Movies, by quantity of ratings
+Count the number of ratings for each movie, order the one with most number of ratings first, submit the top 5.
+
+**Expected result**:
+17, 'Toy Story'
+16, 'The Silence of the Lambs'
+15, 'Star Wars IV - A New Hope'
+14, 'Star Wars VI - Return of the Jedi'
+13, 'Independence Day'
+
+```{r fig.width=7, fig.height=6}
+## count movies that have been rated the most
+most_ratings <- sort(sapply(movie_ratings, function(x){sum(x >= 1, na.rm = T)}), decreasing = T)
+most_ratings[1:5]
+```
+
+# 4) People who watched Star Wars IV also watched ...
+Calculate movies that most often occur with other movie. For each movie, calculate the percentage of the other movie raters who also rated that movie. Order with the highest percentage first, and submit the top 5. Select "Star.Wars.IV...A.New.Hope" movie by defaut. Use the (x+y)/x method.
+
+Top Occurences:
+0.9333333, 'Toy Story'
+0.8666667, 'Star Wars: Episode VI - Return of the Jedi'
+0.8000000, 'The Silence of the Lambs'
+0.7333333, 'Independence Day'
+0.6666667, 'Total Recall'
+
+```{r fig.width=7, fig.height=6}
+
+library(dplyr)
+
+sw4 <- filter(movie_ratings, !is.na(movie_ratings$`Star Wars IV - A New Hope`)) # filter to only have people that have seen this movie
+sw4_sum_ratings <- sum(sw4$`Star Wars IV - A New Hope` >= 1, na.rm = T) # sum the number of times this movie has been rated
+sw4$`Star Wars IV - A New Hope` <- NULL # remove said movie from data frame
+
+# get number of times a movie has been watched divided by number of times/ratings of sw
+sw4_ratings <- sort(sapply(sw4, function(x){sum(x >= 1, na.rm = T) / sw4_sum_ratings}), decreasing = T)[1:5]
+sw4_ratings
+
+```
+
+
+# 5) People who liked Babe also liked ...
+Calculate the movies better rated of people who liked a movie. Select the people who liked the movie "Babe" (4 or 5 stars) and provide the top 5 movies they liked most.
+
+**Expected result**:
+5.000, 'Pulp.Fiction'
+5.000, 'Groundhog.Day'
+4.500, 'The.Shawshank.Redemption'
+4.333, 'Toy.Story'
+4.000, 'Blade.Runner'
+
+```{r fig.width=7, fig.height=6}
+# get number of times this movie has been liked
+sum(movie_ratings$Babe >= 4, na.rm = T)
+
+# filter to keep only the user who have liked the movie
+babe_table <- filter(movie_ratings, movie_ratings$Babe >= 4)
+babe_table$Babe <- NULL
+
+# obtain the mean ratings for the other movies these users have also watched
+babe_ratings <- sort(sapply(babe_table, function(x){mean(x, na.rm = T)}), decreasing = T)[1:5]
+babe_ratings
+
+```
+
+# 6) MovieLens
+Explore a real data set and provide non-personalized ratings. You can use the MovieLens database. You can find MovieLens' dataset here: http://files.grouplens.org/datasets/movielens/ml-10m-README.html
